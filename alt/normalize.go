@@ -156,7 +156,7 @@ func (c *dataEtl) normalize(
 				for i := range newList {
 					newList[i][c.separator.AppendToPrefix(prefix, _key)] = _v
 				}
-			case reflect.Map, reflect.Slice:
+			case reflect.Map, reflect.Slice, reflect.Struct:
 				var copyList = make([]map[string]interface{}, 0)
 				c.logger.Debug(fmt.Sprintf("type is %v", reflect.TypeOf(_v)))
 				for _, _v2 := range newList {
@@ -166,12 +166,57 @@ func (c *dataEtl) normalize(
 				}
 				newList = copyList
 			default:
-				c.logger.Warn("know type ", reflect.TypeOf(_v).Kind())
+				c.logger.Warn("unknown type ", reflect.TypeOf(_v).Kind())
 			}
 		}
 		return newList, err
+	case reflect.Struct:
+		c.logger.Debug("type is struct  ", data)
+		var newList = []map[string]interface{}{cpm(currentMap)}
+		rv := reflect.ValueOf(data)
+		rt := reflect.TypeOf(data)
+		for i := 0; i < rv.NumField(); i++ {
+			_key := rt.Field(i).Name
+			_v := rv.Field(i).Interface()
+			c.logger.Debug(fmt.Sprintf("rec map key:%v, value:%v", _key, _v))
+			// NOTE 必须保证判断是有效的
+			// this case { "data": null }
+			if _v == nil {
+				c.logger.Warn(_key, " nil type ")
+				continue
+			}
+
+			switch reflect.TypeOf(_v).Kind() {
+			case
+				reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+				reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+				reflect.Bool, reflect.Uintptr, reflect.Float32, reflect.Float64, reflect.String:
+				// 如果当前的值 数值，整型，布尔时，填充到所有已经遍历的对象
+				for i := range newList {
+					newList[i][c.separator.AppendToPrefix(prefix, _key)] = _v
+				}
+			case reflect.Map, reflect.Slice, reflect.Struct:
+				var copyList = make([]map[string]interface{}, 0)
+				c.logger.Debug(fmt.Sprintf("type is %v", reflect.TypeOf(_v)))
+				for _, _v2 := range newList {
+					var _res, tmpErr = c.normalize(_v, c.separator.AppendToPrefix(prefix, _key), _v2, depth+1, err)
+					copyList = append(copyList, _res...)
+					err = append(err, tmpErr...)
+				}
+				newList = copyList
+				// 不支持的类型
+			case reflect.Chan, reflect.Pointer, reflect.Func, reflect.Complex64, reflect.Complex128, reflect.UnsafePointer:
+				c.logger.Warn("unknown type i ", reflect.TypeOf(_v).Kind())
+			default:
+				c.logger.Warn("unknown type ", reflect.TypeOf(_v).Kind())
+			}
+		}
+		return newList, err
+
+	case reflect.Chan, reflect.Pointer, reflect.Func, reflect.Complex64, reflect.Complex128, reflect.UnsafePointer:
+		c.logger.Warn("unknown type i ", reflect.TypeOf(data).Kind())
 	default:
-		c.logger.Warn("know type ", reflect.TypeOf(data).Kind())
+		c.logger.Warn("unknown type ", reflect.TypeOf(data).Kind())
 	}
 	return []map[string]interface{}{cpm(currentMap)}, err
 }
