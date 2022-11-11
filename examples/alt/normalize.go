@@ -26,8 +26,9 @@ func main() {
 		paths = append(paths, path)
 		return err
 	})
+	etl := alt.NewDataEtlParser(alt.SetLogger(alt.NewStdLogger(alt.LevelWarn, os.Stdout)))
 	for _, path := range paths {
-		result, err := alt.NewDataEtlParser(alt.SetLogger(alt.NewStdLogger(alt.LevelWarn, os.Stdout))).Parse(readFile(path))
+		result, err := etl.Parse(readFile(path))
 		fmt.Println("file ", path)
 		for _, r := range result {
 

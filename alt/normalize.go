@@ -83,17 +83,15 @@ var _, _ = NewDataEtlParser(
 type dataEtl struct {
 	separator Separator
 	logger    Logger
-	err       []error
 	maxDepth  int
 	ignore    map[string]struct{}
 }
 
 func (c *dataEtl) Parse(data interface{}) (result []map[string]interface{}, err []error) {
-	c.err = c.err[0:0]
 	if data == nil {
-		return nil, c.err
+		return nil, append(err, fmt.Errorf("invalid data"))
 	}
-	return c.normalize(data, "", make(map[string]interface{}), 0), c.err
+	return c.normalize(data, "", make(map[string]interface{}), 0, nil)
 }
 
 func (c *dataEtl) normalize(
@@ -101,16 +99,17 @@ func (c *dataEtl) normalize(
 	prefix string,
 	currentMap map[string]interface{},
 	depth int,
-) (result []map[string]interface{}) {
+	err []error,
+) (result []map[string]interface{}, resErr []error) {
 	if _, find := c.ignore[prefix]; data == nil || (depth > c.maxDepth && c.maxDepth != Infinity) || find {
 		msg := fmt.Sprintf(
 			"invalid data %v or depth <%d> is bigger than max_depth <%d>, more: if max_depth is <%d> is infinity"+
 				"or mose key is ignore",
 			data == nil, depth, c.maxDepth, Infinity)
-		c.err = append(c.err, fmt.Errorf(msg))
 		c.logger.Warn(msg)
-		return []map[string]interface{}{cpm(currentMap)}
+		return []map[string]interface{}{cpm(currentMap)}, append(err, fmt.Errorf(msg))
 	}
+
 	switch reflect.TypeOf(data).Kind() {
 	case
 		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
@@ -119,20 +118,21 @@ func (c *dataEtl) normalize(
 		tmp := cpm(currentMap)
 		tmp[prefix] = data
 		c.logger.Debug(fmt.Sprintf("current type is %v, value is %v", reflect.TypeOf(data).Kind(), data))
-		return append(result, tmp)
+		return append(result, tmp), err
 	case reflect.Slice:
 		var newList []map[string]interface{}
 		var s = reflect.ValueOf(data)
 		c.logger.Debug(fmt.Sprintf("type is slice len is %d", s.Len()))
 		for i := 0; i < s.Len(); i++ {
-			var _res = c.normalize(s.Index(i).Interface(), prefix, cpm(currentMap), depth+1)
+			var _res, tmpErr = c.normalize(s.Index(i).Interface(), prefix, cpm(currentMap), depth+1, err)
 			newList = append(newList, _res...)
+			err = append(err, tmpErr...)
 		}
 		// 如果列表为空, 返回 currentMap 对象本身的数组
 		if len(newList) == 0 {
 			newList = append(newList, cpm(currentMap))
 		}
-		return newList
+		return newList, err
 	case reflect.Map:
 		c.logger.Debug("type is map ", data)
 		var newList = []map[string]interface{}{cpm(currentMap)}
@@ -160,21 +160,24 @@ func (c *dataEtl) normalize(
 				var copyList = make([]map[string]interface{}, 0)
 				c.logger.Debug(fmt.Sprintf("type is %v", reflect.TypeOf(_v)))
 				for _, _v2 := range newList {
-					var _res = c.normalize(_v, c.separator.AppendToPrefix(prefix, _key), _v2, depth+1)
+					var _res, tmpErr = c.normalize(_v, c.separator.AppendToPrefix(prefix, _key), _v2, depth+1, err)
 					copyList = append(copyList, _res...)
+					err = append(err, tmpErr...)
 				}
 				newList = copyList
 			default:
 				c.logger.Warn("know type ", reflect.TypeOf(_v).Kind())
 			}
 		}
-		return newList
+		return newList, err
 	default:
 		c.logger.Warn("know type ", reflect.TypeOf(data).Kind())
 	}
-	return []map[string]interface{}{cpm(currentMap)}
+	return []map[string]interface{}{cpm(currentMap)}, err
 }
 
+// copy map object
+// todo this function do not a deep copy
 func cpm(src map[string]interface{}) (dst map[string]interface{}) {
 	dst = make(map[string]interface{}, len(src))
 	for _k, _v := range src {
