@@ -1,10 +1,66 @@
 # omega
 
+## install
+
+```shell
+go get github.com/hotfizz/omega@latest
+```
+
+```shell
+go install github.com/hotfizz/omega@latest
+```
+
+[examples](examples/simple/main.go)
+
+```go
+package main
+
+import (
+ "fmt"
+ "os"
+
+ "github.com/hotfizz/omega/alt"
+)
+
+func objectHelper() (objects []interface{}) {
+ objects = append(objects, 1)
+ objects = append(objects, 1, "foo")
+ objects = append(objects, 1, "foo", "baz")
+ objects = append(objects, 1, "foo", "baz", map[string]interface{}{"key": "base"})
+
+ objects = append(objects, 1, "foo", "baz",
+  map[string]interface{}{
+   "key":  "base",
+   "list": []interface{}{1, "99"},
+  })
+
+ return objects
+}
+
+func main() {
+ objects := objectHelper()
+ parse := alt.NewDataEtlParser(
+  alt.SetIgnore(map[string]struct{}{}), // set ignore (key) list
+  // set logger, level is debug, output device is console
+  alt.SetLogger(alt.NewStdLogger(alt.LevelDebug, os.Stdout)),
+  alt.SetMaxDepth(alt.Infinity),           // infinity depth, warn stack
+  alt.SetSeparator(alt.StrSeparator("_")), // use underline as separator
+ )
+
+ for _, obj := range objects {
+  result, err := parse.Parse(obj)
+  fmt.Println(err)
+  fmt.Println(result)
+ }
+}
+
+```
+
 用于将对象扁平化输出的库
 
 常见的场景: 比如 elastic, mongo，通用 🕷 API 返回的 JSON 数据转为有结构化的数据
 
-**特别是将数仓ETL过程中，将嵌套的数据结构** 保存到结构化存储引擎中
+**特别是将数仓 ETL 过程中，将嵌套的数据结构** 保存到结构化存储引擎中
 
 比如， 下面这个例子:
 
