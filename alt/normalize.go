@@ -14,26 +14,6 @@ type Parser interface {
 	Parse(data interface{}) (result []map[string]interface{}, err []error)
 }
 
-type Separator interface {
-	AppendToPrefix(prefix string, key interface{}) string
-}
-
-type Logger interface {
-	Debug(args ...interface{})
-	Info(args ...interface{})
-	Warn(args ...interface{})
-	Error(args ...interface{})
-}
-
-type StrSeparator string
-
-func (c StrSeparator) AppendToPrefix(prefix string, key interface{}) string {
-	if prefix == "" {
-		return fmt.Sprintf("%v", key)
-	}
-	return fmt.Sprintf("%s%v%v", prefix, c, key)
-}
-
 func NewDataEtlParser(opt ...OptionFunc) Parser {
 	v := &dataEtl{
 		maxDepth:  Infinity,
