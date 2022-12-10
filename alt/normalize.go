@@ -118,7 +118,7 @@ func (c *dataEtl) normalize(
 
 		return c.parsePrimitive(data, prefix, currentMap, depth, err)
 
-	case reflect.Slice:
+	case reflect.Slice, reflect.Array:
 
 		return c.parseSlice(data, prefix, currentMap, depth, err)
 
@@ -224,7 +224,7 @@ func (c *dataEtl) parseMap(
 			for i := range newList {
 				newList[i][c.separator.AppendToPrefix(prefix, _key)] = _v
 			}
-		case reflect.Map, reflect.Slice, reflect.Struct:
+		case reflect.Map, reflect.Slice, reflect.Struct, reflect.Array:
 			var copyList = make([]map[string]interface{}, 0)
 			c.logger.Debug(fmt.Sprintf("type is %v", reflect.TypeOf(_v)))
 			for _, _v2 := range newList {
@@ -272,7 +272,7 @@ func (c *dataEtl) parseStruct(
 			for i := range newList {
 				newList[i][c.separator.AppendToPrefix(prefix, _key)] = _v
 			}
-		case reflect.Map, reflect.Slice, reflect.Struct:
+		case reflect.Map, reflect.Slice, reflect.Struct, reflect.Array:
 			var copyList = make([]map[string]interface{}, 0)
 			c.logger.Debug(fmt.Sprintf("type is %v", reflect.TypeOf(_v)))
 			for _, _v2 := range newList {
