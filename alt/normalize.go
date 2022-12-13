@@ -81,13 +81,22 @@ func (c *dataEtl) normalize(
 	depth int,
 	err []error,
 ) (result []map[string]interface{}, resErr []error) {
-	if _, find := c.ignore[prefix]; data == nil || (depth > c.maxDepth && c.maxDepth != Infinity) || find {
-		msg := fmt.Sprintf(
-			"invalid data %v or depth <%d> is bigger than max_depth <%d>, more: if max_depth is <%d> is infinity"+
-				"or mose key is ignore",
-			data == nil, depth, c.maxDepth, Infinity)
+	if data == nil {
+		ve := fmt.Sprintf("current key is %s, but value is <nil>", prefix)
+		c.logger.Debug(ve)
+		return []map[string]interface{}{cpm(currentMap)}, err
+	}
+
+	if _, find := c.ignore[prefix]; find {
+		ig := fmt.Sprintf("key is ignored %s", prefix)
+		c.logger.Debug(ig)
+		return []map[string]interface{}{cpm(currentMap)}, err
+	}
+
+	if c.maxDepth != Infinity && depth > c.maxDepth {
+		msg := fmt.Sprintf("exclude depth %s, currentDepth:%d, maxDepth:%d", prefix, depth, c.maxDepth)
 		c.logger.Warn(msg)
-		return []map[string]interface{}{cpm(currentMap)}, append(err, fmt.Errorf(msg))
+		return []map[string]interface{}{cpm(currentMap)}, err
 	}
 
 	switch reflect.TypeOf(data).Kind() {
@@ -110,13 +119,9 @@ func (c *dataEtl) normalize(
 
 		return c.parseStruct(data, prefix, currentMap, depth, err)
 
-	case reflect.Chan, reflect.Pointer, reflect.Func, reflect.Complex64, reflect.Complex128, reflect.UnsafePointer:
-
-		c.logger.Warn("unknown type i ", reflect.TypeOf(data).Kind())
-
 	default:
 
-		c.logger.Warn("unknown type ", reflect.TypeOf(data).Kind())
+		c.logger.Warn("normalize: unknown type ", reflect.TypeOf(data).Kind())
 	}
 
 	return []map[string]interface{}{cpm(currentMap)}, err
@@ -142,12 +147,13 @@ func (c *dataEtl) parsePrimitive(
 	depth int,
 	err []error,
 ) (result []map[string]interface{}, resErr []error) {
-	if !c.primitive(reflect.TypeOf(data).Kind()) {
-		// 做点什么
-	}
 	tmp := cpm(currentMap)
-	tmp[prefix] = data
-	c.logger.Debug(fmt.Sprintf("current type is %v, value is %v", reflect.TypeOf(data).Kind(), data))
+	if _, ok := c.ignore[prefix]; !ok &&
+		(c.maxDepth != Infinity && depth > c.maxDepth) &&
+		c.primitive(reflect.TypeOf(data).Kind()) {
+		c.logger.Debug(fmt.Sprintf("current type is %v, value is %v", reflect.TypeOf(data).Kind(), data))
+		tmp[prefix] = data
+	}
 	return append(result, tmp), err
 }
 
@@ -184,8 +190,17 @@ func (c *dataEtl) parseMap(
 ) (result []map[string]interface{}, resErr []error) {
 	c.logger.Debug("type is map ", data)
 	var newList = []map[string]interface{}{cpm(currentMap)}
+	if c.maxDepth != Infinity && depth > c.maxDepth {
+		c.logger.Debug(fmt.Sprintf("map: current depth:%d is more than maxDepth:%d", depth, c.maxDepth))
+		return newList, err
+	}
 	for mr := reflect.ValueOf(data).MapRange(); mr.Next(); {
 		_key := mr.Key().Interface()
+		// 处理忽略键对象
+		if _, ok := c.ignore[c.separator.AppendToPrefix(prefix, _key)]; ok {
+			c.logger.Debug("map: current key is ignore %s", c.separator.AppendToPrefix(prefix, _key))
+			continue
+		}
 		_v := mr.Value().Interface()
 		c.logger.Debug(fmt.Sprintf("rec map key:%v, value:%v", _key, _v))
 		// NOTE 必须保证判断是有效的
@@ -230,10 +245,18 @@ func (c *dataEtl) parseStruct(
 ) (result []map[string]interface{}, resErr []error) {
 	c.logger.Debug("type is struct  ", data)
 	var newList = []map[string]interface{}{cpm(currentMap)}
+	if c.maxDepth != Infinity && depth > c.maxDepth {
+		c.logger.Debug(fmt.Sprintf("struct: current depth:%d is more than maxDepth:%d", depth, c.maxDepth))
+		return newList, err
+	}
 	rv := reflect.ValueOf(data)
 	rt := reflect.TypeOf(data)
 	for i := 0; i < rv.NumField(); i++ {
 		_key := rt.Field(i).Name
+		if _, ok := c.ignore[c.separator.AppendToPrefix(prefix, _key)]; ok {
+			c.logger.Debug("struct: current key is ignore %s", c.separator.AppendToPrefix(prefix, _key))
+			continue
+		}
 		_v := rv.Field(i).Interface()
 		c.logger.Debug(fmt.Sprintf("rec map key:%v, value:%v", _key, _v))
 		// NOTE 必须保证判断是有效的
@@ -262,7 +285,7 @@ func (c *dataEtl) parseStruct(
 			}
 			newList = copyList
 			// 不支持的类型
-		case reflect.Chan, reflect.Pointer, reflect.Func, reflect.Complex64, reflect.Complex128, reflect.UnsafePointer:
+		case reflect.Chan, reflect.Func, reflect.Complex64, reflect.Complex128:
 			c.logger.Warn("unknown type i ", reflect.TypeOf(_v).Kind())
 		default:
 			c.logger.Warn("unknown type ", reflect.TypeOf(_v).Kind())
