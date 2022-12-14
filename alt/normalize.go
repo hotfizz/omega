@@ -149,7 +149,7 @@ func (c *dataEtl) parsePrimitive(
 ) (result []map[string]interface{}, resErr []error) {
 	tmp := cpm(currentMap)
 	if _, ok := c.ignore[prefix]; !ok &&
-		(c.maxDepth != Infinity && depth > c.maxDepth) &&
+		((c.maxDepth == Infinity) || (c.maxDepth != Infinity && c.maxDepth > depth)) &&
 		c.primitive(reflect.TypeOf(data).Kind()) {
 		c.logger.Debug(fmt.Sprintf("current type is %v, value is %v", reflect.TypeOf(data).Kind(), data))
 		tmp[prefix] = data
