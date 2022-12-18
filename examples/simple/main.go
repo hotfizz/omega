@@ -33,8 +33,7 @@ func main() {
 	)
 
 	for _, obj := range objects {
-		result, err := parse.Parse(obj)
-		fmt.Println(err)
+		result := parse.Parse(obj)
 		fmt.Println(result)
 	}
 }
