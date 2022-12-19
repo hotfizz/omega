@@ -133,6 +133,77 @@ func Test_dataEtl_Parse(t *testing.T) {
 				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 2}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}},
 			},
 		},
+		{
+			name: "success_complex_v2",
+			fields: fields{
+				separator: StrSeparator("."),
+				logger:    NewStdLogger(LevelDebug, os.Stdout),
+				maxDepth:  Infinity,
+				ignore:    map[string]struct{}{},
+			},
+			args: args{data: map[string]interface{}{
+				"aa": "a",
+				"bb": []int{1, 2},
+				"cc": map[string]interface{}{
+					"ee": 2,
+					"dd": 1,
+				},
+				"dd": []int{5, 6, 7},
+			}},
+			wantResult: matrixKvPairs{
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 1}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 5}},
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 1}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 6}},
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 1}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 7}},
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 2}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 5}},
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 2}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 6}},
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 2}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 7}},
+			},
+		},
+
+		{
+			name: "success_complex_v3",
+			fields: fields{
+				separator: StrSeparator("."),
+				logger:    NewStdLogger(LevelDebug, os.Stdout),
+				maxDepth:  Infinity,
+				ignore:    map[string]struct{}{},
+			},
+			args: args{data: map[string]interface{}{
+				"aa": "a",
+				"bb": []int{1, 2},
+				"cc": map[string]interface{}{
+					"ee": 2,
+					"dd": 1,
+				},
+				"dd": []int{5, 6, 7},
+				"ee": []int{8, 9, 10},
+			}},
+			wantResult: matrixKvPairs{
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 1}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 5}, {Key: "ee", Value: 8}},
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 1}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 5}, {Key: "ee", Value: 9}},
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 1}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 5}, {Key: "ee", Value: 10}},
+
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 1}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 6}, {Key: "ee", Value: 8}},
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 1}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 6}, {Key: "ee", Value: 9}},
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 1}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 6}, {Key: "ee", Value: 10}},
+
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 1}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 7}, {Key: "ee", Value: 8}},
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 1}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 7}, {Key: "ee", Value: 9}},
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 1}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 7}, {Key: "ee", Value: 10}},
+
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 2}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 5}, {Key: "ee", Value: 8}},
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 2}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 5}, {Key: "ee", Value: 9}},
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 2}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 5}, {Key: "ee", Value: 10}},
+
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 2}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 6}, {Key: "ee", Value: 8}},
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 2}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 6}, {Key: "ee", Value: 9}},
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 2}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 6}, {Key: "ee", Value: 10}},
+
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 2}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 7}, {Key: "ee", Value: 8}},
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 2}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 7}, {Key: "ee", Value: 9}},
+				[]pair{{Key: "aa", Value: "a"}, {Key: "bb", Value: 2}, {Key: "cc.dd", Value: 1}, {Key: "cc.ee", Value: 2}, {Key: "dd", Value: 7}, {Key: "ee", Value: 10}},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
