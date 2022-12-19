@@ -11,7 +11,7 @@ const (
 )
 
 type Parser interface {
-	Parse(data interface{}) (result []map[string]interface{}, err []error)
+	Parse(data interface{}) (result []map[string]interface{})
 }
 
 func NewDataEtlParser(opt ...OptionFunc) Parser {
@@ -53,7 +53,7 @@ func SetSeparator(separator Separator) OptionFunc {
 	}
 }
 
-var _, _ = NewDataEtlParser(
+var _ = NewDataEtlParser(
 	SetMaxDepth(Infinity),
 	SetLogger(NewStdLogger(LevelDebug, os.Stdout)),
 	SetSeparator(StrSeparator("_")),
@@ -67,11 +67,12 @@ type dataEtl struct {
 	ignore    map[string]struct{}
 }
 
-func (c *dataEtl) Parse(data interface{}) (result []map[string]interface{}, err []error) {
+func (c *dataEtl) Parse(data interface{}) (result []map[string]interface{}) {
 	if data == nil {
-		return nil, append(err, fmt.Errorf("invalid data"))
+		c.logger.Debug("parser data is nil, return empty list")
+		return make([]map[string]interface{}, 0)
 	}
-	return c.normalize(data, "", make(map[string]interface{}), 0, nil)
+	return c.normalize(data, "", make(map[string]interface{}), 0)
 }
 
 func (c *dataEtl) normalize(
@@ -79,52 +80,50 @@ func (c *dataEtl) normalize(
 	prefix string,
 	currentMap map[string]interface{},
 	depth int,
-	err []error,
-) (result []map[string]interface{}, resErr []error) {
+) (result []map[string]interface{}) {
 	if data == nil {
 		ve := fmt.Sprintf("current key is %s, but value is <nil>", prefix)
 		c.logger.Debug(ve)
-		return []map[string]interface{}{cpm(currentMap)}, err
+		return []map[string]interface{}{cpm(currentMap)}
 	}
 
 	if _, find := c.ignore[prefix]; find {
 		ig := fmt.Sprintf("key is ignored %s", prefix)
 		c.logger.Debug(ig)
-		return []map[string]interface{}{cpm(currentMap)}, err
+		return []map[string]interface{}{cpm(currentMap)}
 	}
 
 	if c.maxDepth != Infinity && depth > c.maxDepth {
 		msg := fmt.Sprintf("exclude depth %s, currentDepth:%d, maxDepth:%d", prefix, depth, c.maxDepth)
 		c.logger.Warn(msg)
-		return []map[string]interface{}{cpm(currentMap)}, err
+		return []map[string]interface{}{cpm(currentMap)}
 	}
 
+	c.logger.Debug(fmt.Sprintf("parser  type %v, data %v", reflect.TypeOf(data).Kind(), data))
 	switch reflect.TypeOf(data).Kind() {
 	case
 		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
 		reflect.Bool, reflect.Uintptr, reflect.Float32, reflect.Float64, reflect.String:
-
-		return c.parsePrimitive(data, prefix, currentMap, depth, err)
+		return c.parsePrimitive(data, prefix, currentMap, depth)
 
 	case reflect.Slice, reflect.Array:
-
-		return c.parseSlice(data, prefix, currentMap, depth, err)
+		return c.parseSlice(data, prefix, currentMap, depth)
 
 	case reflect.Map:
 
-		return c.parseMap(data, prefix, currentMap, depth, err)
+		return c.parseMap(data, prefix, currentMap, depth)
 
 	case reflect.Struct:
 
-		return c.parseStruct(data, prefix, currentMap, depth, err)
+		return c.parseStruct(data, prefix, currentMap, depth)
 
 	default:
 
 		c.logger.Warn("normalize: unknown type ", reflect.TypeOf(data).Kind())
 	}
 
-	return []map[string]interface{}{cpm(currentMap)}, err
+	return []map[string]interface{}{cpm(currentMap)}
 }
 
 // primitive  判断是否为基础类型
@@ -145,8 +144,7 @@ func (c *dataEtl) parsePrimitive(
 	prefix string,
 	currentMap map[string]interface{},
 	depth int,
-	err []error,
-) (result []map[string]interface{}, resErr []error) {
+) (result []map[string]interface{}) {
 	tmp := cpm(currentMap)
 	if _, ok := c.ignore[prefix]; !ok &&
 		((c.maxDepth == Infinity) || (c.maxDepth != Infinity && c.maxDepth > depth)) &&
@@ -154,7 +152,7 @@ func (c *dataEtl) parsePrimitive(
 		c.logger.Debug(fmt.Sprintf("current type is %v, value is %v", reflect.TypeOf(data).Kind(), data))
 		tmp[prefix] = data
 	}
-	return append(result, tmp), err
+	return append(result, tmp)
 }
 
 // 处理切片类型
@@ -163,21 +161,19 @@ func (c *dataEtl) parseSlice(
 	prefix string,
 	currentMap map[string]interface{},
 	depth int,
-	err []error,
-) (result []map[string]interface{}, resErr []error) {
+) (result []map[string]interface{}) {
 	var newList []map[string]interface{}
 	var s = reflect.ValueOf(data)
 	c.logger.Debug(fmt.Sprintf("type is slice len is %d", s.Len()))
 	for i := 0; i < s.Len(); i++ {
-		var _res, tmpErr = c.normalize(s.Index(i).Interface(), prefix, cpm(currentMap), depth+1, err)
+		var _res = c.normalize(s.Index(i).Interface(), prefix, cpm(currentMap), depth+1)
 		newList = append(newList, _res...)
-		err = append(err, tmpErr...)
 	}
 	// 如果列表为空, 返回 currentMap 对象本身的数组
 	if len(newList) == 0 {
 		newList = append(newList, cpm(currentMap))
 	}
-	return newList, err
+	return newList
 }
 
 // 解析 map 类型
@@ -186,13 +182,12 @@ func (c *dataEtl) parseMap(
 	prefix string,
 	currentMap map[string]interface{},
 	depth int,
-	err []error,
-) (result []map[string]interface{}, resErr []error) {
+) (result []map[string]interface{}) {
 	c.logger.Debug("type is map ", data)
 	var newList = []map[string]interface{}{cpm(currentMap)}
 	if c.maxDepth != Infinity && depth > c.maxDepth {
 		c.logger.Debug(fmt.Sprintf("map: current depth:%d is more than maxDepth:%d", depth, c.maxDepth))
-		return newList, err
+		return newList
 	}
 	for mr := reflect.ValueOf(data).MapRange(); mr.Next(); {
 		_key := mr.Key().Interface()
@@ -223,16 +218,15 @@ func (c *dataEtl) parseMap(
 			var copyList = make([]map[string]interface{}, 0)
 			c.logger.Debug(fmt.Sprintf("type is %v", reflect.TypeOf(_v)))
 			for _, _v2 := range newList {
-				var _res, tmpErr = c.normalize(_v, c.separator.AppendToPrefix(prefix, _key), _v2, depth+1, err)
+				var _res = c.normalize(_v, c.separator.AppendToPrefix(prefix, _key), _v2, depth+1)
 				copyList = append(copyList, _res...)
-				err = append(err, tmpErr...)
 			}
 			newList = copyList
 		default:
 			c.logger.Warn("unknown type ", reflect.TypeOf(_v).Kind())
 		}
 	}
-	return newList, err
+	return newList
 }
 
 // 解析 struct 类型
@@ -241,13 +235,12 @@ func (c *dataEtl) parseStruct(
 	prefix string,
 	currentMap map[string]interface{},
 	depth int,
-	err []error,
-) (result []map[string]interface{}, resErr []error) {
+) (result []map[string]interface{}) {
 	c.logger.Debug("type is struct  ", data)
 	var newList = []map[string]interface{}{cpm(currentMap)}
 	if c.maxDepth != Infinity && depth > c.maxDepth {
 		c.logger.Debug(fmt.Sprintf("struct: current depth:%d is more than maxDepth:%d", depth, c.maxDepth))
-		return newList, err
+		return newList
 	}
 	rv := reflect.ValueOf(data)
 	rt := reflect.TypeOf(data)
@@ -279,9 +272,8 @@ func (c *dataEtl) parseStruct(
 			var copyList = make([]map[string]interface{}, 0)
 			c.logger.Debug(fmt.Sprintf("type is %v", reflect.TypeOf(_v)))
 			for _, _v2 := range newList {
-				var _res, tmpErr = c.normalize(_v, c.separator.AppendToPrefix(prefix, _key), _v2, depth+1, err)
+				var _res = c.normalize(_v, c.separator.AppendToPrefix(prefix, _key), _v2, depth+1)
 				copyList = append(copyList, _res...)
-				err = append(err, tmpErr...)
 			}
 			newList = copyList
 			// 不支持的类型
@@ -291,7 +283,7 @@ func (c *dataEtl) parseStruct(
 			c.logger.Warn("unknown type ", reflect.TypeOf(_v).Kind())
 		}
 	}
-	return newList, err
+	return newList
 }
 
 // copy map object

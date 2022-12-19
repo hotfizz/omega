@@ -30,7 +30,7 @@ const (
 	LevelError          = 3
 )
 const (
-	logMsg = "[%s] %s"
+	logMsg = "[%s] %s\n"
 )
 
 type stdLogger struct {
